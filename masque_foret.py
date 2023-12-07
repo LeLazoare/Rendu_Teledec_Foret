@@ -11,10 +11,11 @@ import os
 dossier = r'C:\tmp\projet_TLD_SIGMA\data_mask'
 
 BD_foret = os.path.join(dossier, 'FORMATION_VEGETALE.shp')
-# Masque créé au format shp:
-mask_foret_shp = os.path.join(dossier, 'masque_BD_Foret.shp')
 emprise_etude = os.path.join(dossier, 'emprise_etude.shp')
 out_image = os.path.join(dossier, 'masque_foret.tif')
+
+# Couche à créer pour rasteriser par la suite
+mask_foret_shp = os.path.join(dossier, 'masque_BD_Foret.shp')
 
 # Charger les données sous forme de dataframes
 gdf = gpd.read_file(BD_foret)
@@ -44,7 +45,7 @@ gdf_filtre.to_file(mask_foret_shp, driver="ESRI Shapefile")
 sptial_resolution = 10
 xmin, ymin, xmax, ymax = empr_etu.total_bounds
 field_name = 'Zone' 
-#
+
 # Définition du pattern de la commande avec les paramètres
 # Le raster de sortie sera au format GTiff et encodé en Byte
 cmd_pattern = ("gdal_rasterize -a {field_name} "
@@ -58,5 +59,5 @@ cmd = cmd_pattern.format(in_vector=mask_foret_shp, xmin=xmin, ymin=ymin,
                          field_name=field_name,
                          sptial_resolution=sptial_resolution)
 
-# execute the command in the terminal
+# Execution du de la commande dans le terminal
 os.system(cmd)
