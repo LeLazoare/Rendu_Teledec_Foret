@@ -2,20 +2,21 @@
 """
 Created on Thu Dec  7 10:07:49 2023
 
-@author: Michel Tarby
+@authors: Michel Tarby, Tom Mervant
 """
 import geopandas as gpd
+from osgeo import gdal
 import os
 
 # Définition du dossier de travail et chargement des paramètres d'intérêt
-dossier = r'C:\tmp\projet_TLD_SIGMA\data_mask'
+dossier = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/'
 
-BD_foret = os.path.join(dossier, 'FORMATION_VEGETALE.shp')
-emprise_etude = os.path.join(dossier, 'emprise_etude.shp')
-out_image = os.path.join(dossier, 'masque_foret.tif')
+BD_foret = os.path.join(dossier, 'data_ori/FORMATION_VEGETALE.shp')
+emprise_etude = os.path.join(dossier, 'data_ori/emprise_etude.shp')
+out_image = os.path.join(dossier, 'data_ori/masque_foret.tif')
 
 # Couche à créer pour rasteriser par la suite
-mask_foret_shp = os.path.join(dossier, 'masque_BD_Foret.shp')
+mask_foret_shp = os.path.join(dossier, 'data_ori/masque_BD_Foret.shp')
 
 # Charger les données sous forme de dataframes
 gdf = gpd.read_file(BD_foret)
@@ -42,8 +43,19 @@ gdf_filtre.to_file(mask_foret_shp, driver="ESRI Shapefile")
 
 # Définition de la résolution spatiale (10m) et récupération de l'emprise de 
 # la zone d'intérêt
-sptial_resolution = 10
-xmin, ymin, xmax, ymax = empr_etu.total_bounds
+
+#xmin, ymin, xmax, ymax = empr_etu.total_bounds#issue when confronting results to gdal warp clipping option
+input_fpath = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/warp-2/warped.tif'
+reference_img = gdal.Open(input_fpath)
+geotransform = reference_img.GetGeoTransform()
+print(geotransform)
+
+sptial_resolution = geotransform[1]
+xmin = geotransform[0]
+ymax = geotransform[3]
+xmax = xmin + geotransform[1] * reference_img.RasterXSize
+ymin = ymax + geotransform[5] * reference_img.RasterYSize
+
 field_name = 'Zone' 
 
 # Définition du pattern de la commande avec les paramètres

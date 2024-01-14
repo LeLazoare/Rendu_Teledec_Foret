@@ -12,6 +12,7 @@ import sys
 import time
 
 from osgeo import gdal
+import numpy as np 
 
 sys.path.append('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/scripts_')
 import my_function as preprocess
@@ -40,6 +41,26 @@ print('processed in:', end - start)
 
 
 #mask || same clipping method should be used
-#ensure same extent (if condition)
+#ensure same extent (condition)
+input_fpath = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/warp-2/warped.tif'
+mask_fpath = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/masque_foret.tif'
+output_fpath = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/mask-3/masked.tif'
+
+img_ext = preprocess.get_raster_extent(input_fpath)
+mask_ext = preprocess.get_raster_extent(mask_fpath)
+
+if img_ext != mask_ext:
+    print('input files are not of same extent')
+
+#apply mask 
+start = time.time()
+masked = preprocess.apply_mask(
+    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/warp-2/warped.tif',   
+    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/masque_foret.tif',
+    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/mask-3/masked.tif'
+)
+end = time.time()
+print('processed in:', end - start)
+
 
 

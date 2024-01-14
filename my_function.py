@@ -33,7 +33,7 @@ def warp_tif(
     filepath to file related to tif img to process 
 
     output_fpath | string
-    filepath to file where process img is to be written
+    filepath to file where processed img is to be written
 
     shapefile_fpath | string
     filepath to file related to shp mask to clip tif img with
@@ -86,7 +86,7 @@ def convert_to_uint16(input_fpath, output_fpath):
     filepath to file related to tif img to process 
 
     output_fpath | string
-    filepath to file where process img is to be written
+    filepath to file where processed img is to be written
     '''
     
     ##open as gdal dataset obj
@@ -139,7 +139,7 @@ def convert_to_uint8(input_fpath, output_fpath):
     filepath to file related to tif img to process 
 
     output_fpath | string
-    filepath to file where process img is to be written
+    filepath to file where processed img is to be written
     '''
     
     ##open as gdal dataset obj
@@ -175,4 +175,96 @@ def convert_to_uint8(input_fpath, output_fpath):
 
     #close datasets to save memory space
     input_dataset = None
+    output_dataset = None
+
+def get_raster_extent(input_fpath):
+    '''
+    Using GDAL : get raster extent
+
+    REQUIREMENTS
+    __________
+    from osgeo import gdal
+    
+    PARAMETERS
+    __________
+    input_fpath | string
+    filepath to file related to tif img to process 
+    '''
+
+    ##open as gdal dataset obj
+    input_dataset = gdal.Open(input_fpath)
+
+    ##retrieve pixel size and original coordinates
+    geotransform = input_dataset.GetGeoTransform()
+
+    ##get raster extent
+    xmin = geotransform[0]
+    ymax = geotransform[3]
+    xmax = xmin + geotransform[1] * input_dataset.RasterXSize
+    ymin = ymax + geotransform[5] * input_dataset.RasterYSize
+
+    #close dataset to save memory space
+    input_dataset = None
+    
+    return(xmin, ymin, xmax, ymax)
+
+def apply_mask(input_fpath, mask_fpath, output_fpath):
+    '''
+    Using GDAL : apply raster file as mask to another raster of SAME EXTENT, 
+    so that values strictly OUTSIDE the mask are set to 0
+
+    REQUIREMENTS
+    __________
+    from osgeo import gdal
+    
+    PARAMETERS
+    __________
+    input_fpath | string
+    filepath to file related to tif img to process 
+
+    mask_fpath | string
+    filepath to file related to tif img to use as mask
+
+    output_fpath | string
+    filepath to file where processed img is to be written
+    '''
+
+    ##open as gdal dataset obj
+    input_dataset = gdal.Open(input_fpath)
+    mask = gdal.Open(mask_fpath)
+
+    #load as np.ndarray
+    input_dataset_ar = input_dataset.ReadAsArray()
+    mask_ar = mask.ReadAsArray()
+
+    mask_ar = mask_ar.astype('bool')  # convert to boolean format
+    mask_ar = np.squeeze(mask_ar)  # supress the third dimension so
+                                        # that it can be use img_masked
+
+    # do some processing with numpy: mask the image
+    data_masked = input_dataset_ar.copy()
+    data_masked[~mask_ar] = 0  #bitwise operator -- equivalent to NOT such as in !
+    data_masked = data_masked
+
+    #create empty dataset using input_dataset main properties
+    output_dataset = gdal.GetDriverByName('GTiff').Create(
+        output_fpath,
+        input_dataset.RasterXSize,
+        input_dataset.RasterYSize,
+        input_dataset.RasterCount,
+        input_dataset.GetRasterBand(1).DataType
+        )
+
+    output_dataset.SetGeoTransform(input_dataset.GetGeoTransform())
+    output_dataset.SetProjection(input_dataset.GetProjection())
+
+    #retrieve and write bands
+    for band_num in range(1, input_dataset.RasterCount + 1):
+        output_band = output_dataset.GetRasterBand(band_num)
+        #output_band.WriteArray(data_masked[band_num - 1, :, :])#error: mask array cannot be 3D
+        output_band.WriteArray(data_masked)
+
+    # Close datasets
+    input_dataset = None
+    mask = None
     output_dataset = None
