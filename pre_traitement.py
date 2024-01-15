@@ -2,7 +2,7 @@
 Subject: BD FORET enhancement project using REMOTE SENSING
 preprocess -> base img and ndvi builder
 
-Requirements: my_function.py script file
+Requirements: my_function.py script file | librairies as follows (sys, os, glob)
 
 Authors: M.Tarby - G.Ruiz - L.Sauger - T.Mervant || SIGMA 2024
 """
@@ -12,9 +12,6 @@ import sys
 import os
 import glob
 import time
-
-from osgeo import gdal
-
 
 sys.path.append('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/scripts_')
 import my_function as preprocess
@@ -81,6 +78,7 @@ output_dir = os.path.join(folder, 'res/mask-3')
 start = time.time()
 for band_file in filepaths:
 
+    #check extent
     img_ext = preprocess.get_raster_extent(band_file)
     mask_ext = preprocess.get_raster_extent(mask_fpath)
 
@@ -98,6 +96,36 @@ for band_file in filepaths:
         mask_fpath,
         output_file
     )
+
+end = time.time()
+print('processed in:', end - start)
+
+####################################
+#build multispectral img - single date only
+filepaths = glob.glob(os.path.join(folder,'res/mask-3/*.tif'))
+
+start = time.time()
+
+ms = preprocess.build_ms(
+    filepaths,
+    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/multispectral/24-02-2021.tif'#fill in date
+)
+
+end = time.time()
+print('processed in:', end - start)
+ 
+
+####################################
+#build multispectral img - multiple dates
+
+#not tested - merging raster files already containing multiple bands
+filepaths = glob.glob(os.path.join(folder,'res/multispectral/*.tif'))
+start = time.time()
+
+ms = preprocess.build_ms(
+    filepaths,
+    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/multispectral/maj_ms/maj_ms.tif'
+)
 
 end = time.time()
 print('processed in:', end - start)

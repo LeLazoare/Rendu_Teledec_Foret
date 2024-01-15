@@ -268,3 +268,60 @@ def apply_mask(input_fpath, mask_fpath, output_fpath):
     input_dataset = None
     mask = None
     output_dataset = None
+
+def build_ms(input_fpaths, output_fpath):
+    '''
+    Using GDAL : build multispectral img from bands in distinct raster files
+
+    REQUIREMENTS
+    __________
+    from osgeo import gdal
+    
+    PARAMETERS
+    __________
+    input_fpaths | string
+    filepaths to files related to tif imgs to process 
+
+    output_fpath | string
+    filepath to file where processed img is to be written
+    '''
+
+    #open as gdal dataset obj
+    input_datasets = [gdal.Open(file) for file in input_fpaths]
+
+    #template img
+    template_dataset = input_datasets[0]
+    width = template_dataset.RasterXSize
+    height = template_dataset.RasterYSize
+    projection = template_dataset.GetProjection()
+
+    #create empty dataset using template_dataset main properties
+    driver = gdal.GetDriverByName(
+        template_dataset.GetDriver().ShortName
+        )
+
+    output_dataset = driver.Create(
+        output_fpath, 
+        template_dataset.RasterXSize, 
+        template_dataset.RasterYSize, 
+        len(input_datasets), 
+        template_dataset.GetRasterBand(1).DataType
+        )
+
+    #write down bands
+    for i, input_dataset in enumerate(input_datasets):
+        for band_num in range(1, input_dataset.RasterCount + 1):
+            output_band = output_dataset.GetRasterBand(i + 1)
+            input_band = input_dataset.GetRasterBand(band_num)
+            output_band.WriteArray(input_band.ReadAsArray())
+
+    #set geotransform and projection
+    output_dataset.SetGeoTransform(template_dataset.GetGeoTransform())
+    output_dataset.SetProjection(template_dataset.GetProjection())
+
+    #close datasets to save memory space
+    for dataset in input_datasets:
+        dataset = None
+
+    output_dataset = None
+
