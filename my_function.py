@@ -198,6 +198,7 @@ def get_raster_extent(input_fpath):
     geotransform = input_dataset.GetGeoTransform()
 
     ##get raster extent
+    sptial_resolution = geotransform[1]
     xmin = geotransform[0]
     ymax = geotransform[3]
     xmax = xmin + geotransform[1] * input_dataset.RasterXSize
@@ -206,7 +207,7 @@ def get_raster_extent(input_fpath):
     #close dataset to save memory space
     input_dataset = None
     
-    return(xmin, ymin, xmax, ymax)
+    return(xmin, ymin, xmax, ymax, sptial_resolution)
 
 def apply_mask(input_fpath, mask_fpath, output_fpath):
     '''

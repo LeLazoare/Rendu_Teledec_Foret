@@ -7,6 +7,7 @@ Created on Thu Dec  7 10:07:49 2023
 import geopandas as gpd
 from osgeo import gdal
 import os
+import my_function as function
 
 # Définition du dossier de travail et chargement des paramètres d'intérêt
 dossier = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/'
@@ -44,17 +45,9 @@ gdf_filtre.to_file(mask_foret_shp, driver="ESRI Shapefile")
 # Définition de la résolution spatiale (10m) et récupération de l'emprise de 
 # la zone d'intérêt
 
-#xmin, ymin, xmax, ymax = empr_etu.total_bounds#issue when confronting results to gdal warp clipping option
+#issue when confronting results to gdal warp clipping option
 input_fpath = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/warp-2/warped.tif'
-reference_img = gdal.Open(input_fpath)
-geotransform = reference_img.GetGeoTransform()
-print(geotransform)
-
-sptial_resolution = geotransform[1]
-xmin = geotransform[0]
-ymax = geotransform[3]
-xmax = xmin + geotransform[1] * reference_img.RasterXSize
-ymin = ymax + geotransform[5] * reference_img.RasterYSize
+xmin, ymin, xmax, ymax, sptial_resolution = function.get_raster_extent(input_fpath)
 
 field_name = 'Zone' 
 
