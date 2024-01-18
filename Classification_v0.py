@@ -8,7 +8,7 @@ Created on Tue Jan 16 14:06:01 2024
 import sys
 import geopandas as gpd
 import pandas as pd
-
+from sklearn.ensemble import RandomForestClassifier as RF 
 import os
 
 from sklearn.model_selection import StratifiedGroupKFold, KFold
@@ -23,6 +23,7 @@ from sklearn.model_selection import train_test_split
 # personal librairies
 sys.path.append('C:\tmp\projet_TLD_SIGMA\GitHub_projet\Rendu_Teledec_Foret')
 import my_function as function
+import function_test as function2
 
 
 
@@ -87,7 +88,9 @@ if os.path.exists(in_vector):
 for samp in range(0, len(samples_raster)):
     out_classif = os.path.join(my_folder, 'carte_essences{}'.format(
         samples_raster[samp][-9:]))
-    function.classif_final(image_filename, samp, out_classif)
+    function2.classif_final(image_filename, samples_raster[samp], out_classif)
+    
+    print("Classification enregistrée")
 """
 # Sample parameters
 #test_size = 0.7

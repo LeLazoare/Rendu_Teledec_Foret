@@ -201,7 +201,6 @@ def get_raster_extent(input_fpath):
     input_fpath | string
     filepath to file related to tif img to process 
     '''
-
     ##open as gdal dataset obj
     input_dataset = gdal.Open(input_fpath)
 
