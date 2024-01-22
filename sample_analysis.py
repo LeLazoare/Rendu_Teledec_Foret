@@ -1,12 +1,16 @@
 
 # Importation des bibliothèques
 import geopandas as gpd
+import pandas as pd
 import matplotlib.pyplot as plt
 import rasterio
+from rasterio.mask import mask
 from rasterstats import zonal_stats 
 
+import time
+
 # charger les données sous forme de dataframe 
-gdf_poly = gpd.read_file('C:/tmp/projet_TLD_SIGMA/Results/Sample_BD_foret_T31TCJ.shp')
+gdf_poly = gpd.read_file('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp')
 
 # regrouper les données selon la combinaison (unique) des colonnes des niveaux 1, 2 et 3.
 # size() pour compter le nombre de polygones
@@ -14,6 +18,8 @@ gdf_poly = gpd.read_file('C:/tmp/projet_TLD_SIGMA/Results/Sample_BD_foret_T31TCJ
 # colonne de comptage comme « count ».
 grouped_data = gdf_poly.groupby(['Nom_lvl1', 'Nom_lvl2', 'Nom_lvl3']).size()\
     .reset_index(name='count')
+
+grouped_data
 
 # Liste des niveaux de nomenclature
 niveaux = [1, 2, 3]
@@ -62,10 +68,10 @@ for niveau in niveaux:
 ### Nombre de pixels par classe
 
 # charger le fichier vecteur
-gdf_pix = gpd.read_file('C:/tmp/projet_TLD_SIGMA/Results/Sample_BD_foret_T31TCJ.shp')
+gdf_pix = gpd.read_file('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp')
 
 # charger le fichier raster
-with rasterio.open("C:/tmp/projet_TLD_SIGMA/Results/masque_foret.tif") as src:
+with rasterio.open('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/masque_foret.tif') as src:
     # Lire les données raster
     raster_data = src.read(1)
 
@@ -77,8 +83,11 @@ with rasterio.open("C:/tmp/projet_TLD_SIGMA/Results/masque_foret.tif") as src:
 # ajouter une colonne avec le nombre de pixels par classe dans le gdf
 gdf_pix['class_pixels'] = [stat['count'] for stat in stats]
 
+gdf_pix
+
 # liste des niveaux de nomenclature
 niveaux = [1, 2, 3]
+
 
 
 # itérer sur la liste; pour chaque niveau, on construit dynamiquement le nom du
@@ -120,4 +129,55 @@ for niveau in niveaux:
     # Sauvegarde de la figure eu format png
     plt.savefig(f'diag_baton_nb_pix_lvl{niveau}.png', bbox_inches='tight')  
 
- 
+
+ ########## NDVI STATS
+#load raster file to compute stats with #NB: raster file has already been clipped to mask
+ndvi = rasterio.open(
+    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/maj_ndvi/maj_ndvi.tif'
+                     )
+
+#read as array (panchromatic image such as NDVI only)
+ndvi_array = ndvi.read(1)
+
+#load polygons to compute stats on
+samples_gdf = gpd.read_file(
+    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp'
+    )
+
+#compute mean ndvi value for each polygon
+start = time.time()
+
+mean_ndvi = zonal_stats(
+    samples_gdf.geometry, 
+    ndvi_array, 
+    affine = ndvi.transform,
+    stats='mean',
+    nodata = ndvi.nodata
+)
+
+end = time.time()
+print('processed in:', end - start)
+
+#add values for each polygon
+mean_ndvi_df = pd.DataFrame(mean_ndvi)
+samples_gdf['mean_ndvi'] = mean_ndvi_df
+
+#compute standard deviation from mean ndvi value for each polygon
+start = time.time()
+
+std_ndvi = zonal_stats(
+    samples_gdf.geometry, 
+    ndvi_array, 
+    affine = ndvi.transform,
+    stats='std',
+    nodata = ndvi.nodata
+)
+
+std_ndvi_df = pd.DataFrame(std_ndvi)
+samples_gdf['std_ndvi'] = std_ndvi_df
+
+end = time.time()
+print('processed in:', end - start)
+
+samples_gdf
+
