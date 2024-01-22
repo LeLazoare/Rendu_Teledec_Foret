@@ -1,5 +1,5 @@
 
-# Importation des bibliothèques
+#lib import
 import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -19,6 +19,7 @@ gdf_poly = gpd.read_file('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_cl
 grouped_data = gdf_poly.groupby(['Nom_lvl1', 'Nom_lvl2', 'Nom_lvl3']).size()\
     .reset_index(name='count')
 
+gdf_poly
 grouped_data
 
 # Liste des niveaux de nomenclature
@@ -132,52 +133,68 @@ for niveau in niveaux:
 
  ########## NDVI STATS
 #load raster file to compute stats with #NB: raster file has already been clipped to mask
-ndvi = rasterio.open(
+with rasterio.open(
     'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/maj_ndvi/maj_ndvi.tif'
-                     )
+                     ) as ndvi:
 
-#read as array (panchromatic image such as NDVI only)
-ndvi_array = ndvi.read(1)
+    #read as array (panchromatic image such as NDVI only)
+    ndvi_array = ndvi.read(1)
 
-#load polygons to compute stats on
-samples_gdf = gpd.read_file(
-    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp'
+    #load polygons to compute stats on
+    samples_gdf = gpd.read_file(
+        'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp'
+        )
+
+    #compute mean ndvi value for each polygon
+    start = time.time()
+
+    mean_ndvi = zonal_stats(
+        samples_gdf.geometry, 
+        ndvi_array, 
+        affine = ndvi.transform,
+        stats='mean',
+        nodata = ndvi.nodata
     )
 
-#compute mean ndvi value for each polygon
-start = time.time()
+    end = time.time()
+    print('processed in:', end - start)
 
-mean_ndvi = zonal_stats(
-    samples_gdf.geometry, 
-    ndvi_array, 
-    affine = ndvi.transform,
-    stats='mean',
-    nodata = ndvi.nodata
-)
+    #add values for each polygon
+    mean_ndvi_df = pd.DataFrame(mean_ndvi)
+    samples_gdf['mean_ndvi'] = mean_ndvi_df
 
-end = time.time()
-print('processed in:', end - start)
+    #compute standard deviation from mean ndvi value for each polygon
+    start = time.time()
 
-#add values for each polygon
-mean_ndvi_df = pd.DataFrame(mean_ndvi)
-samples_gdf['mean_ndvi'] = mean_ndvi_df
+    std_ndvi = zonal_stats(
+        samples_gdf.geometry, 
+        ndvi_array, 
+        affine = ndvi.transform,
+        stats='std',
+        nodata = ndvi.nodata
+    )
 
-#compute standard deviation from mean ndvi value for each polygon
-start = time.time()
+    std_ndvi_df = pd.DataFrame(std_ndvi)
+    samples_gdf['std_ndvi'] = std_ndvi_df
 
-std_ndvi = zonal_stats(
-    samples_gdf.geometry, 
-    ndvi_array, 
-    affine = ndvi.transform,
-    stats='std',
-    nodata = ndvi.nodata
-)
+    end = time.time()
+    print('processed in:', end - start)
 
-std_ndvi_df = pd.DataFrame(std_ndvi)
-samples_gdf['std_ndvi'] = std_ndvi_df
+#compute mean and std for each category level
+levels = [1, 2, 3]
 
-end = time.time()
-print('processed in:', end - start)
+for level in levels:
+
+    #lock on specified level data
+    data_lvl = f'Nom_lvl{level}'
+
+    #set up base plot
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    #
 
 samples_gdf
+
+
+
 
