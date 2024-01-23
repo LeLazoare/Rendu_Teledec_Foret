@@ -640,7 +640,6 @@ def report_from_dict_to_df(dict_report):
 
 def classif_Kfolds(groups, X, Y, t, name):
     # Sample parameters
-    #test_size = 0.7
     nb_iter = 30
     nb_folds = 5
      
@@ -727,6 +726,7 @@ def classif_Kfolds(groups, X, Y, t, name):
                   linewidth=0.5, zorder=1)
     ax.yaxis.grid(which='minor', color='darkgoldenrod', linestyle='-.',
                   linewidth=0.3, zorder=1)
+    return mean_df_report, std_df_report
 
 def classif_final(image_filename, sample_filename, out_classif, X_img, 
                   t_img):
