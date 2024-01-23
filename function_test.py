@@ -638,17 +638,12 @@ def report_from_dict_to_df(dict_report):
 
     return report_df
 
-def classif_Kfolds(image_filename, sample_filename, id_filename):
+def classif_Kfolds(groups, X, Y, t, name):
     # Sample parameters
     #test_size = 0.7
     nb_iter = 30
     nb_folds = 5
-    
-    
-    # 2 --- extract samples
-    X, Y, t = get_samples_from_roi(image_filename, sample_filename)
-    _, groups, _ = get_samples_from_roi(image_filename, id_filename)
-    
+     
     
     list_cm = []
     list_accuracy = []
@@ -663,9 +658,9 @@ def classif_Kfolds(image_filename, sample_filename, id_filename):
     
           # 3 --- Train
           #clf = SVC(cache_size=6000)
-          clf = RF(max_depth=20, oob_score=True,max_samples=0.75, 
+          clf = RF(max_depth=10, oob_score=True,max_samples=0.10, 
                    class_weight='balanced')
-          clf.fit(X_train, Y_train)
+          clf.fit(X_train, np.ravel(Y_train))
     
           # 4 --- Test
           Y_predict = clf.predict(X_test)
@@ -709,7 +704,7 @@ def classif_Kfolds(image_filename, sample_filename, id_filename):
     _ = ax.text(1.5, 0.95, 'OA : {:.2f} +- {:.2f}'.format(mean_accuracy,
                                                           std_accuracy),
                 fontsize=14)
-    ax.set_title('Class quality estimation')
+    ax.set_title('Class quality estimation{}'.format(name))
     
     # custom : cuteness
     # background color
@@ -733,19 +728,15 @@ def classif_Kfolds(image_filename, sample_filename, id_filename):
     ax.yaxis.grid(which='minor', color='darkgoldenrod', linestyle='-.',
                   linewidth=0.3, zorder=1)
 
-def classif_final(image_filename, sample_filename, out_classif):
+def classif_final(image_filename, sample_filename, out_classif, X_img, 
+                  t_img):
     # 1 --- extract samples
     X, Y, t = get_samples_from_roi(image_filename, sample_filename)
     
     # 2 --- Apply the model
     clf = RF(max_depth=10, oob_score=True,max_samples=0.10, 
                    class_weight='balanced')
-    clf.fit(X, Y)
-
-    
-    # 3 --- apply on the whole image
-    # load image
-    X_img, _, t_img = get_samples_from_roi(image_filename, image_filename)
+    clf.fit(X, np.ravel(Y))
     
     # predict image
     Y_predict = clf.predict(X_img)
@@ -759,6 +750,7 @@ def classif_final(image_filename, sample_filename, out_classif):
     
     # write image
     ds = open_image(image_filename)
-    write_image(out_classif, img, data_set=ds, gdal_dtype=None,
+    write_image(out_classif, img, data_set=ds, gdal_dtype=gdal.GDT_Byte,
                 transform=None, projection=None, driver_name=None,
                 nb_col=None, nb_ligne=None, nb_band=1)
+    return X, Y, t
