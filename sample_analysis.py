@@ -185,16 +185,50 @@ levels = [1, 2, 3]
 
 for level in levels:
 
-    #lock on specified level data
-    data_lvl = f'Nom_lvl{level}'
+    ###retrieve data
+    #lock on specified category level
+    cat_lvl = f'Nom_lvl{level}'
 
+    #lock on level
+    mean_lvl = samples_gdf.groupby(cat_lvl)['mean_ndvi']
+
+    #lock on level
+    std_lvl = samples_gdf.groupby(cat_lvl)['std_ndvi']
+
+    ###display data
     #set up base plot
     fig, ax = plt.subplots(figsize=(14, 7))
 
-    #
+    ax.plot(total_values, mean_lvl)
+
+
+
 
 samples_gdf
 
+#lock on level
+leveled = samples_gdf.groupby('Nom_lvl1')#generic pd dataframe object
 
+#lock on object category within level
+obj_cat = leveled['Nom_lvl1'].unique().tolist()
+
+#identify 
+for cat in obj_cat:
+    print(cat)^
+
+    #
+    lock
+
+    #retrieve mean and std values
+
+
+mean_lvl = samples_gdf[['Nom_lvl1', 'mean_ndvi', 'std_ndvi']]
+mean_lvl
+
+#set up base plot
+fig, ax = plt.subplots(figsize=(14, 7))
+
+ax.plot(total_values, mean_lvl)
+#plot mean and std ndvi values according to category levels
 
 
