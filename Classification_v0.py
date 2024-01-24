@@ -103,3 +103,13 @@ for samp in range(0, len(samples_raster)):
     std_report.append(std_df_report)
     print("Classification et validation effectuée pour {}".format(name))
 
+
+# 5 --- Regroup classes
+my_folder = '/home/terudel/Documents/cours/2020-2021/SIGMA/teledec_avance/data/aumelas/'
+classif_filename = os.path.join(my_folder, 'ma_premiere_classif_scikit.tif')
+out_regoup_filename = os.path.join(my_folder, 'ma_premiere_classif_scikit_regroup.tif')
+
+classif = function2.load_img_as_array(classif_filename)
+classif[classif==4] = 3
+ds = function2.open_image(classif_filename)
+function2.write_image(out_regoup_filename, classif, data_set=ds)
