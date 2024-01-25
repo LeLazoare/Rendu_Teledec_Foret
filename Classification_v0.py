@@ -83,10 +83,11 @@ X_img, _, t_img = function2.get_samples_from_roi(image_filename, image_filename)
 _, groups, _ = function2.get_samples_from_roi(image_filename, out_name)
 
 # Iterate through each level of classification
-mean_report, std_report = [], []
+mean_report, std_report, name_out_classif = [], [], []
 for samp in range(0, len(samples_raster)):
     out_classif = os.path.join(my_folder, 'carte_essences{}'.format(
         samples_raster[samp][-9:]))
+    name_out_classif.append(out_classif)
     print("Nom out_classif: {}".format(out_classif))
     
     # Perform classification and get X, Y and t for validation
@@ -105,11 +106,35 @@ for samp in range(0, len(samples_raster)):
 
 
 # 5 --- Regroup classes
-my_folder = '/home/terudel/Documents/cours/2020-2021/SIGMA/teledec_avance/data/aumelas/'
-classif_filename = os.path.join(my_folder, 'ma_premiere_classif_scikit.tif')
-out_regoup_filename = os.path.join(my_folder, 'ma_premiere_classif_scikit_regroup.tif')
+# Create out name for each regroup
+out_lvl3_to_lvl2 = os.path.join(my_folder, 'carte_essences_lvl2_fromlvl3.tif')
+out_lvl3_to_lvl1 = os.path.join(my_folder, 'carte_essences_lvl1_fromlvl3.tif')
+out_lvl2_to_lvl1 = os.path.join(my_folder, 'carte_essences_lvl1_fromlvl2.tif')
 
-classif = function2.load_img_as_array(classif_filename)
-classif[classif==4] = 3
-ds = function2.open_image(classif_filename)
-function2.write_image(out_regoup_filename, classif, data_set=ds)
+# Regroup from Level 3 to Level 2
+lvl3_to_lvl2 = function2.load_img_as_array(name_out_classif[2])
+lvl3_to_lvl2[(lvl3_to_lvl2 >= 100) & (lvl3_to_lvl2 <= 109)] = 10
+lvl3_to_lvl2[lvl3_to_lvl2 == 110] = 11
+lvl3_to_lvl2[(lvl3_to_lvl2 >= 210) & (lvl3_to_lvl2 <= 219)] = 21
+lvl3_to_lvl2[(lvl3_to_lvl2 >= 220) & (lvl3_to_lvl2 <= 229)] = 22
+lvl3_to_lvl2[lvl3_to_lvl2 == 230] = 23
+# Export
+ds = function2.open_image(name_out_classif[2])
+function2.write_image(out_lvl3_to_lvl2, lvl3_to_lvl2, data_set=ds)
+
+# Regroup from Level 3 to Level 1
+lvl3_to_lvl1 = function2.load_img_as_array(name_out_classif[2])
+lvl3_to_lvl1[(lvl3_to_lvl1 >= 100) & (lvl3_to_lvl1 <= 110)] = 1
+lvl3_to_lvl1[(lvl3_to_lvl1 >= 211) & (lvl3_to_lvl1 <= 230)] = 2
+# Export
+ds = function2.open_image(name_out_classif[1])
+function2.write_image(out_lvl3_to_lvl1, lvl3_to_lvl1, data_set=ds)
+
+# Regroup from Level 2 to Level 1
+lvl2_to_lvl1 = function2.load_img_as_array(name_out_classif[1])
+lvl2_to_lvl1 = lvl2_to_lvl1.astype(int)
+lvl2_to_lvl1[(lvl2_to_lvl1 >= 10) & (lvl2_to_lvl1 <= 11)] = 1
+lvl2_to_lvl1[(lvl2_to_lvl1 >= 21) & (lvl2_to_lvl1 <= 23)] = 2
+# Export
+ds = function2.open_image(name_out_classif[1])
+function2.write_image(out_lvl2_to_lvl1, lvl2_to_lvl1, data_set=ds)
