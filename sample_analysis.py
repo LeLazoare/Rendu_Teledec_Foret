@@ -132,103 +132,298 @@ for niveau in niveaux:
 
 
  ########## NDVI STATS
-#load raster file to compute stats with #NB: raster file has already been clipped to mask
-with rasterio.open(
-    'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/maj_ndvi/maj_ndvi.tif'
-                     ) as ndvi:
+##############################################
+#REFERENCE IMAGE FOR RASTERIZATION
+input_fpath = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/2021-02-24_ndvi.tif'
+reference_img = gdal.Open(input_fpath)
+geotransform = reference_img.GetGeoTransform()
+print(geotransform)
 
-    #read as array (panchromatic image such as NDVI only)
-    ndvi_array = ndvi.read(1)
+spatial_resolution = geotransform[1]
+xmin = geotransform[0]
+ymax = geotransform[3]
+xmax = xmin + geotransform[1] * reference_img.RasterXSize
+ymin = ymax + geotransform[5] * reference_img.RasterYSize
+##############################################
 
-    #load polygons to compute stats on
-    samples_gdf = gpd.read_file(
-        'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp'
-        )
+##############################################
+#RASTERIZATION PARAMETER
+folder = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class'
+input_vectors = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp'
+ndvi_maj = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/maj_ndvi/maj_ndvi.tif'
+##############################################
+output_fpath = os.path.join(folder, 'res/samples/lvl1.tif')
 
-    #compute mean ndvi value for each polygon
-    start = time.time()
+##############################################
+#RASTERIZATION LEVEL 1
+start = time.time()
 
-    mean_ndvi = zonal_stats(
-        samples_gdf.geometry, 
-        ndvi_array, 
-        affine = ndvi.transform,
-        stats='mean',
-        nodata = ndvi.nodata
-    )
+#create empty dataset using input_dataset main properties with chosen format
+output_dataset = gdal.GetDriverByName('GTiff').Create(
+    output_fpath,
+    reference_img.RasterXSize,
+    reference_img.RasterYSize,
+    reference_img.RasterCount, #ndvi == 1 band
+    gdal.GDT_Byte
+)
 
-    end = time.time()
-    print('processed in:', end - start)
+output_dataset.SetGeoTransform(reference_img.GetGeoTransform())
+output_dataset.SetProjection(reference_img.GetProjection())
 
-    #add values for each polygon
-    mean_ndvi_df = pd.DataFrame(mean_ndvi)
-    samples_gdf['mean_ndvi'] = mean_ndvi_df
+#default background value
+background_value = 0
+output_dataset.GetRasterBand(1).Fill(background_value)
 
-    #compute standard deviation from mean ndvi value for each polygon
-    start = time.time()
+#get corresponding field name from dictionary
+field_name = 'Code_lvl1'
 
-    std_ndvi = zonal_stats(
-        samples_gdf.geometry, 
-        ndvi_array, 
-        affine = ndvi.transform,
-        stats='std',
-        nodata = ndvi.nodata
-    )
+print(f"Processing {'lvl1'} with input vector: {input_vectors} and field name: {field_name}")
 
-    std_ndvi_df = pd.DataFrame(std_ndvi)
-    samples_gdf['std_ndvi'] = std_ndvi_df
+#define command parameters
+cmd_pattern = ("gdal_rasterize -a {field_name} "
+               "-tr {sptial_resolution} {sptial_resolution} "
+               "-te {xmin} {ymin} {xmax} {ymax} -ot Byte -of GTiff "
+               "{in_vector} {out_image}")
 
-    end = time.time()
-    print('processed in:', end - start)
+#set parameters
+cmd = cmd_pattern.format(in_vector=input_vectors, xmin=xmin, ymin=ymin, 
+                         xmax=xmax, ymax=ymax, out_image=output_fpath, 
+                         field_name=field_name,
+                         sptial_resolution=spatial_resolution)
 
-#compute mean and std for each category level
-levels = [1, 2, 3]
+#print command before launching
+print(f"Executing command: {cmd}")
 
-for level in levels:
+#launch command
+os.system(cmd)
 
-    ###retrieve data
-    #lock on specified category level
-    cat_lvl = f'Nom_lvl{level}'
+print(f"Rasterization completed for {'lvl1'}")
+print(f"Output file path: {output_fpath}")
 
-    #lock on level
-    mean_lvl = samples_gdf.groupby(cat_lvl)['mean_ndvi']
+end = time.time()
+print('processed in:', end - start)
+##############################################
+#GET SAMPLES FROM ROI
+X, Y, t = cla.get_samples_from_roi(ndvi_maj, 
+                                   output_fpath, 
+                                   value_to_extract=None,
+                                   bands=None, 
+                                   output_fmt='by_label')
 
-    #lock on level
-    std_lvl = samples_gdf.groupby(cat_lvl)['std_ndvi']
+##############################################
+#DISPLAY LVL1 MEAN AND STD NDVI VALUES
+bands_names = ['2021-02-24', '2021-03-31', '2021-04-15', '2021-07-19', '2021-10-17', '2021-12-16']
 
-    ###display data
-    #set up base plot
-    fig, ax = plt.subplots(figsize=(14, 7))
+fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 5))
 
-    ax.plot(total_values, mean_lvl)
+for label, ndvi_values in X.items():
+    means = np.mean(ndvi_values, axis=0)
+    stds = np.std(ndvi_values, axis=0)
 
+    ax.plot(means, label=f'Mean - Class {label}')
+    ax.fill_between(range(len(bands_names)), means + stds, means - stds, alpha=0.3, label=f'Std Dev - Class {label}')
 
-
-
-samples_gdf
-
-#lock on level
-leveled = samples_gdf.groupby('Nom_lvl1')#generic pd dataframe object
-
-#lock on object category within level
-obj_cat = leveled['Nom_lvl1'].unique().tolist()
-
-#identify 
-for cat in obj_cat:
-    print(cat)^
-
-    #
-    lock
-
-    #retrieve mean and std values
-
-
-mean_lvl = samples_gdf[['Nom_lvl1', 'mean_ndvi', 'std_ndvi']]
-mean_lvl
-
-#set up base plot
-fig, ax = plt.subplots(figsize=(14, 7))
-
-ax.plot(total_values, mean_lvl)
-#plot mean and std ndvi values according to category levels
+ax.set_xticks(range(len(bands_names)))
+ax.set_xticklabels(bands_names)
 
 
+#shrink current axis by 20%
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+
+ax.set_xlabel('Bands')
+ax.set_ylabel('NDVI Values')
+ax.set_title('LVL 1 - Temporal Signature of Mean NDVI Values with Standard Deviation by Class')
+
+#put legend to the right of the current axis
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+#save fig
+plt.savefig(f'temp_mean_ndvi_lvl1.png', bbox_inches='tight') 
+
+plt.show()
+
+##############################################
+#RASTERIZATION LEVEL 2
+output_fpath = os.path.join(folder, 'res/samples/lvl2.tif')
+
+start = time.time()
+
+#create empty dataset using input_dataset main properties with chosen format
+output_dataset = gdal.GetDriverByName('GTiff').Create(
+    output_fpath,
+    reference_img.RasterXSize,
+    reference_img.RasterYSize,
+    reference_img.RasterCount, #ndvi == 1 band
+    gdal.GDT_Byte
+)
+
+output_dataset.SetGeoTransform(reference_img.GetGeoTransform())
+output_dataset.SetProjection(reference_img.GetProjection())
+
+#default background value
+background_value = 0
+output_dataset.GetRasterBand(1).Fill(background_value)
+
+#get corresponding field name from dictionary
+field_name = 'Code_lvl2'
+
+print(f"Processing {'lvl2'} with input vector: {input_vectors} and field name: {field_name}")
+
+#define command parameters
+cmd_pattern = ("gdal_rasterize -a {field_name} "
+               "-tr {sptial_resolution} {sptial_resolution} "
+               "-te {xmin} {ymin} {xmax} {ymax} -ot Byte -of GTiff "
+               "{in_vector} {out_image}")
+
+#set parameters
+cmd = cmd_pattern.format(in_vector=input_vectors, xmin=xmin, ymin=ymin, 
+                         xmax=xmax, ymax=ymax, out_image=output_fpath, 
+                         field_name=field_name,
+                         sptial_resolution=spatial_resolution)
+
+#print command before launching
+print(f"Executing command: {cmd}")
+
+#launch command
+os.system(cmd)
+
+print(f"Rasterization completed for {'lvl2'}")
+print(f"Output file path: {output_fpath}")
+
+end = time.time()
+print('processed in:', end - start)
+
+##############################################
+#GET SAMPLES FROM ROI
+X, Y, t = cla.get_samples_from_roi(ndvi_maj, 
+                                   output_fpath, 
+                                   value_to_extract=None,
+                                   bands=None, 
+                                   output_fmt='by_label')
+
+##############################################
+#DISPLAY LVL2 MEAN AND STD NDVI VALUES
+bands_names = ['2021-02-24', '2021-03-31', '2021-04-15', '2021-07-19', '2021-10-17', '2021-12-16']
+
+fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 5))
+
+for label, ndvi_values in X.items():
+    means = np.mean(ndvi_values, axis=0)
+    stds = np.std(ndvi_values, axis=0)
+
+    ax.plot(means, label=f'Mean - Class {label}')
+    ax.fill_between(range(len(bands_names)), means + stds, means - stds, alpha=0.3, label=f'Std Dev - Class {label}')
+
+ax.set_xticks(range(len(bands_names)))
+ax.set_xticklabels(bands_names)
+
+
+#shrink current axis by 20%
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+
+ax.set_xlabel('Bands')
+ax.set_ylabel('NDVI Values')
+ax.set_title('LVL 2 - Temporal Signature of Mean NDVI Values with Standard Deviation by Class')
+
+#put legend to the right of the current axis
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+#save fig
+plt.savefig(f'temp_mean_ndvi_lvl2.png', bbox_inches='tight') 
+
+plt.show()
+
+##############################################
+#RASTERIZATION LVL3
+output_fpath = os.path.join(folder, 'res/samples/lvl3.tif')
+
+start = time.time()
+
+#create empty dataset using input_dataset main properties with chosen format
+output_dataset = gdal.GetDriverByName('GTiff').Create(
+    output_fpath,
+    reference_img.RasterXSize,
+    reference_img.RasterYSize,
+    reference_img.RasterCount, #ndvi == 1 band
+    gdal.GDT_Byte
+)
+
+output_dataset.SetGeoTransform(reference_img.GetGeoTransform())
+output_dataset.SetProjection(reference_img.GetProjection())
+
+#default background value
+background_value = 0
+output_dataset.GetRasterBand(1).Fill(background_value)
+
+#get corresponding field name from dictionary
+field_name = 'Code_lvl3'
+
+print(f"Processing {'lvl3'} with input vector: {input_vectors} and field name: {field_name}")
+
+#define command parameters
+cmd_pattern = ("gdal_rasterize -a {field_name} "
+               "-tr {sptial_resolution} {sptial_resolution} "
+               "-te {xmin} {ymin} {xmax} {ymax} -ot Byte -of GTiff "
+               "{in_vector} {out_image}")
+
+#set parameters
+cmd = cmd_pattern.format(in_vector=input_vectors, xmin=xmin, ymin=ymin, 
+                         xmax=xmax, ymax=ymax, out_image=output_fpath, 
+                         field_name=field_name,
+                         sptial_resolution=spatial_resolution)
+
+#print command before launching
+print(f"Executing command: {cmd}")
+
+#launch command
+os.system(cmd)
+
+print(f"Rasterization completed for {'lvl3'}")
+print(f"Output file path: {output_fpath}")
+
+end = time.time()
+print('processed in:', end - start)
+
+##############################################
+#GET SAMPLES FROM ROI
+X, Y, t = cla.get_samples_from_roi(ndvi_maj, 
+                                   output_fpath, 
+                                   value_to_extract=None,
+                                   bands=None, 
+                                   output_fmt='by_label')
+
+##############################################
+#DISPLAY LVL3 MEAN AND STD NDVI VALUES
+bands_names = ['2021-02-24', '2021-03-31', '2021-04-15', '2021-07-19', '2021-10-17', '2021-12-16']
+
+fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 5))
+
+for label, ndvi_values in X.items():
+    means = np.mean(ndvi_values, axis=0)
+    stds = np.std(ndvi_values, axis=0)
+
+    ax.plot(means, label=f'Mean - Class {label}')
+    ax.fill_between(range(len(bands_names)), means + stds, means - stds, alpha=0.3, label=f'Std Dev - Class {label}')
+
+ax.set_xticks(range(len(bands_names)))
+ax.set_xticklabels(bands_names)
+
+#shrink current axis by 20%
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+
+ax.set_xlabel('Bands')
+ax.set_ylabel('NDVI Values')
+ax.set_title('LVL 3 - Temporal Signature of Mean NDVI Values with Standard Deviation by Class')
+
+#put legend to the right of the current axis
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+#save fig
+plt.savefig(f'temp_mean_ndvi_lvl3.png', bbox_inches='tight') 
+
+plt.show()
+
+ 
