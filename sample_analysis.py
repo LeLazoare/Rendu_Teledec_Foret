@@ -1,16 +1,39 @@
 
 #lib import
+import sys
+import os
+
 import geopandas as gpd
 import pandas as pd
+import numpy as np
+
 import matplotlib.pyplot as plt
+
+from osgeo import gdal
 import rasterio
 from rasterio.mask import mask
 from rasterstats import zonal_stats 
 
 import time
 
+sys.path.append('C:/Users/Xenerios/Desktop/adv_remote-sensing/rm_py')
+import read_and_write as rw
+import classification as cla
+import plots as pt
+import image_visu as iv
+
+##############################################
+#OVERALL PARAMETERS
+folder_path = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class'
+input_vectors_path = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp'
+masque_foret_path = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/masque_foret.tif'
+ndvi_maj_path = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/maj_ndvi/maj_ndvi.tif'
+
+
+##############################################
+#SAMPLE SELECTION
 # charger les données sous forme de dataframe 
-gdf_poly = gpd.read_file('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp')
+gdf_poly = gpd.read_file(input_vectors_path)
 
 # regrouper les données selon la combinaison (unique) des colonnes des niveaux 1, 2 et 3.
 # size() pour compter le nombre de polygones
@@ -21,10 +44,11 @@ grouped_data = gdf_poly.groupby(['Nom_lvl1', 'Nom_lvl2', 'Nom_lvl3']).size()\
 
 gdf_poly
 grouped_data
+##############################################
 
+##############################################
 # Liste des niveaux de nomenclature
 niveaux = [1, 2, 3]
-
 ### Nombre de polygones par classe
 
 # itérer sur la liste; pour chaque niveau, on construit dynamiquement le nom 
@@ -63,33 +87,28 @@ for niveau in niveaux:
     
     # Sauvegarde de la figure eu format png
     plt.savefig(f'diag_baton_nb_poly_lvl{niveau}.png', bbox_inches='tight')  
-    
 
 
+##############################################
 ### Nombre de pixels par classe
 
-# charger le fichier vecteur
-gdf_pix = gpd.read_file('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp')
-
 # charger le fichier raster
-with rasterio.open('C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/masque_foret.tif') as src:
+with rasterio.open(masque_foret_path) as src:
     # Lire les données raster
     raster_data = src.read(1)
 
     # Calcul du nombre de pixels (stats="count") dans chaque géométrie du gdf 
     # en fonction des valeurs des pixels du raster
-    stats = zonal_stats(gdf_pix.geometry, raster_data, affine=src.transform, 
+    stats = zonal_stats(gdf_poly.geometry, raster_data, affine=src.transform, 
                         stats="count", nodata=src.nodata)
 
 # ajouter une colonne avec le nombre de pixels par classe dans le gdf
-gdf_pix['class_pixels'] = [stat['count'] for stat in stats]
+gdf_poly['class_pixels'] = [stat['count'] for stat in stats]
 
-gdf_pix
+gdf_poly
 
 # liste des niveaux de nomenclature
 niveaux = [1, 2, 3]
-
-
 
 # itérer sur la liste; pour chaque niveau, on construit dynamiquement le nom du
 # champ et on agrège le nb de pixels pour chaque classe de chaque colonne 
@@ -99,7 +118,7 @@ for niveau in niveaux:
     # Générer un diagramme en bâton pour chaque niveau de nomenclature
     fig, ax = plt.subplots(figsize=(14, 7))
     # Grouper les données
-    grouped_data = gdf_pix.groupby(niveau_column)['class_pixels'].sum()
+    grouped_data = gdf_poly.groupby(niveau_column)['class_pixels'].sum()
     
     # Tracer le diagramme en bâtons
     bars = ax.bar(grouped_data.index, grouped_data.values, color='#de892f')
@@ -121,7 +140,6 @@ for niveau in niveaux:
     # angle des classes pour une meilleure lisibilité
     plt.xticks(rotation=45, ha='right') 
     
-    
     # Ajout et colorisation de lignes verticales grises
     ax.set_axisbelow(True)
     ax.yaxis.grid(True, color='grey')
@@ -129,13 +147,13 @@ for niveau in niveaux:
     
     # Sauvegarde de la figure eu format png
     plt.savefig(f'diag_baton_nb_pix_lvl{niveau}.png', bbox_inches='tight')  
-
-
- ########## NDVI STATS
 ##############################################
+
+##############################################
+#NDVI STATS
 #REFERENCE IMAGE FOR RASTERIZATION
-input_fpath = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/2021-02-24_ndvi.tif'
-reference_img = gdal.Open(input_fpath)
+#any img previously producted within current project will do | here mask will do
+reference_img = gdal.Open(masque_foret_path)
 geotransform = reference_img.GetGeoTransform()
 print(geotransform)
 
@@ -146,16 +164,17 @@ xmax = xmin + geotransform[1] * reference_img.RasterXSize
 ymin = ymax + geotransform[5] * reference_img.RasterYSize
 ##############################################
 
-##############################################
-#RASTERIZATION PARAMETER
-folder = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class'
-input_vectors = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/Sample_BD_foret_T31TCJ/Sample_BD_foret_T31TCJ.shp'
-ndvi_maj = 'C:/Users/Xenerios/Desktop/adv_remote-sensing/forest_class/res/ndvi/maj_ndvi/maj_ndvi.tif'
-##############################################
-output_fpath = os.path.join(folder, 'res/samples/lvl1.tif')
 
 ##############################################
 #RASTERIZATION LEVEL 1
+output_fpath = os.path.join(folder_path, 'res/samples/lvl1.tif')
+#extract the directory path from the file path
+output_dir = os.path.dirname(output_fpath)
+
+#check if the directory exists, and create it if not
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
 start = time.time()
 
 #create empty dataset using input_dataset main properties with chosen format
@@ -177,7 +196,7 @@ output_dataset.GetRasterBand(1).Fill(background_value)
 #get corresponding field name from dictionary
 field_name = 'Code_lvl1'
 
-print(f"Processing {'lvl1'} with input vector: {input_vectors} and field name: {field_name}")
+print(f"Processing {'lvl1'} with input vector: {input_vectors_path} and field name: {field_name}")
 
 #define command parameters
 cmd_pattern = ("gdal_rasterize -a {field_name} "
@@ -186,7 +205,7 @@ cmd_pattern = ("gdal_rasterize -a {field_name} "
                "{in_vector} {out_image}")
 
 #set parameters
-cmd = cmd_pattern.format(in_vector=input_vectors, xmin=xmin, ymin=ymin, 
+cmd = cmd_pattern.format(in_vector=input_vectors_path, xmin=xmin, ymin=ymin, 
                          xmax=xmax, ymax=ymax, out_image=output_fpath, 
                          field_name=field_name,
                          sptial_resolution=spatial_resolution)
@@ -204,7 +223,7 @@ end = time.time()
 print('processed in:', end - start)
 ##############################################
 #GET SAMPLES FROM ROI
-X, Y, t = cla.get_samples_from_roi(ndvi_maj, 
+X, Y, t = cla.get_samples_from_roi(ndvi_maj_path, 
                                    output_fpath, 
                                    value_to_extract=None,
                                    bands=None, 
@@ -245,7 +264,13 @@ plt.show()
 
 ##############################################
 #RASTERIZATION LEVEL 2
-output_fpath = os.path.join(folder, 'res/samples/lvl2.tif')
+output_fpath = os.path.join(folder_path, 'res/samples/lvl2.tif')
+#extract the directory path from the file path
+output_dir = os.path.dirname(output_fpath)
+
+#check if the directory exists, and create it if not
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 start = time.time()
 
@@ -268,7 +293,7 @@ output_dataset.GetRasterBand(1).Fill(background_value)
 #get corresponding field name from dictionary
 field_name = 'Code_lvl2'
 
-print(f"Processing {'lvl2'} with input vector: {input_vectors} and field name: {field_name}")
+print(f"Processing {'lvl2'} with input vector: {input_vectors_path} and field name: {field_name}")
 
 #define command parameters
 cmd_pattern = ("gdal_rasterize -a {field_name} "
@@ -277,7 +302,7 @@ cmd_pattern = ("gdal_rasterize -a {field_name} "
                "{in_vector} {out_image}")
 
 #set parameters
-cmd = cmd_pattern.format(in_vector=input_vectors, xmin=xmin, ymin=ymin, 
+cmd = cmd_pattern.format(in_vector=input_vectors_path, xmin=xmin, ymin=ymin, 
                          xmax=xmax, ymax=ymax, out_image=output_fpath, 
                          field_name=field_name,
                          sptial_resolution=spatial_resolution)
@@ -296,7 +321,7 @@ print('processed in:', end - start)
 
 ##############################################
 #GET SAMPLES FROM ROI
-X, Y, t = cla.get_samples_from_roi(ndvi_maj, 
+X, Y, t = cla.get_samples_from_roi(ndvi_maj_path, 
                                    output_fpath, 
                                    value_to_extract=None,
                                    bands=None, 
@@ -337,7 +362,13 @@ plt.show()
 
 ##############################################
 #RASTERIZATION LVL3
-output_fpath = os.path.join(folder, 'res/samples/lvl3.tif')
+output_fpath = os.path.join(folder_path, 'res/samples/lvl3.tif')
+#extract the directory path from the file path
+output_dir = os.path.dirname(output_fpath)
+
+#check if the directory exists, and create it if not
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 start = time.time()
 
@@ -360,7 +391,7 @@ output_dataset.GetRasterBand(1).Fill(background_value)
 #get corresponding field name from dictionary
 field_name = 'Code_lvl3'
 
-print(f"Processing {'lvl3'} with input vector: {input_vectors} and field name: {field_name}")
+print(f"Processing {'lvl3'} with input vector: {input_vectors_path} and field name: {field_name}")
 
 #define command parameters
 cmd_pattern = ("gdal_rasterize -a {field_name} "
@@ -369,7 +400,7 @@ cmd_pattern = ("gdal_rasterize -a {field_name} "
                "{in_vector} {out_image}")
 
 #set parameters
-cmd = cmd_pattern.format(in_vector=input_vectors, xmin=xmin, ymin=ymin, 
+cmd = cmd_pattern.format(in_vector=input_vectors_path, xmin=xmin, ymin=ymin, 
                          xmax=xmax, ymax=ymax, out_image=output_fpath, 
                          field_name=field_name,
                          sptial_resolution=spatial_resolution)
@@ -388,7 +419,7 @@ print('processed in:', end - start)
 
 ##############################################
 #GET SAMPLES FROM ROI
-X, Y, t = cla.get_samples_from_roi(ndvi_maj, 
+X, Y, t = cla.get_samples_from_roi(ndvi_maj_path, 
                                    output_fpath, 
                                    value_to_extract=None,
                                    bands=None, 
