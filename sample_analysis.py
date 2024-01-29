@@ -1,26 +1,45 @@
+'''
+Subject: BD FORET enhancement project using REMOTE SENSING
+preprocess -> sample analysis by class level
+
+Requirements: 
+| |
+files as follows
+(
+- corresponding samples file (.shp)
+- mask of forest area (.tif)
+- agregation of NDVI (6 bands) (.tif)
+)
+
+| |
+librairies as follows 
+(
+sys, os, geopandas, numpy
+matplotlib, gdal, rasterio, zonal_stats, time, classification
+)
+
+Authors: M.Tarby - G.Ruiz - L.Sauger - T.Mervant || SIGMA 2024
+'''
+
 
 #lib import
 import sys
 import os
 
 import geopandas as gpd
-import pandas as pd
 import numpy as np
 
 import matplotlib.pyplot as plt
 
 from osgeo import gdal
 import rasterio
-from rasterio.mask import mask
 from rasterstats import zonal_stats 
 
 import time
 
 sys.path.append('C:/Users/Xenerios/Desktop/adv_remote-sensing/rm_py')
-import read_and_write as rw
 import classification as cla
-import plots as pt
-import image_visu as iv
+
 
 ##############################################
 #OVERALL PARAMETERS
@@ -258,7 +277,14 @@ ax.set_title('LVL 1 - Temporal Signature of Mean NDVI Values with Standard Devia
 ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 #save fig
-plt.savefig(f'temp_mean_ndvi_lvl1.png', bbox_inches='tight') 
+output_fpath = os.path.join(folder_path, 'res/samples/temp_mean_ndvi_lvl1.png')
+#extract the directory path from the file path
+output_dir = os.path.dirname(output_fpath)
+
+#check if the directory exists, and create it if not
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+plt.savefig(output_fpath, bbox_inches='tight') 
 
 plt.show()
 
@@ -356,7 +382,14 @@ ax.set_title('LVL 2 - Temporal Signature of Mean NDVI Values with Standard Devia
 ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 #save fig
-plt.savefig(f'temp_mean_ndvi_lvl2.png', bbox_inches='tight') 
+output_fpath = os.path.join(folder_path, 'res/samples/temp_mean_ndvi_lvl2.png')
+#extract the directory path from the file path
+output_dir = os.path.dirname(output_fpath)
+
+#check if the directory exists, and create it if not
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+plt.savefig(output_fpath, bbox_inches='tight') 
 
 plt.show()
 
@@ -453,7 +486,14 @@ ax.set_title('LVL 3 - Temporal Signature of Mean NDVI Values with Standard Devia
 ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
 #save fig
-plt.savefig(f'temp_mean_ndvi_lvl3.png', bbox_inches='tight') 
+output_fpath = os.path.join(folder_path, 'res/samples/temp_mean_ndvi_lvl3.png')
+#extract the directory path from the file path
+output_dir = os.path.dirname(output_fpath)
+
+#check if the directory exists, and create it if not
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+plt.savefig(output_fpath, bbox_inches='tight') 
 
 plt.show()
 
