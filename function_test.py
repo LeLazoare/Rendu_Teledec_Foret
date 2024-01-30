@@ -6,7 +6,6 @@ Created on Thu Jan 18 15:58:45 2024
 """
 from osgeo import gdal #main img handling lib
 import numpy as np #overall calculations
-import subprocess
 import geopandas as gpd
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier as RF 
@@ -16,7 +15,7 @@ from sklearn.metrics import confusion_matrix, classification_report, \
 import matplotlib.pyplot as plt
 from museotoolbox.charts import PlotConfusionMatrix
 from matplotlib.pyplot import cm as colorMap
-from sklearn.model_selection import train_test_split
+
 
 def open_image(filename, verbose=False):
   """
