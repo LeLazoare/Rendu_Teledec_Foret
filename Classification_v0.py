@@ -131,9 +131,30 @@ for k in range(0, len(X_list)):
     
 # 5 --- Regroup, create correspondant map and perform validation
 # Create maps
+# # Create out name for each regroup
+out_lvl3_to_lvl2 = os.path.join(my_folder, 'carte_essences_lvl2_fromlvl3.tif')
+out_lvl3_to_lvl1 = os.path.join(my_folder, 'carte_essences_lvl1_fromlvl3.tif')
+out_lvl2_to_lvl1 = os.path.join(my_folder, 'carte_essences_lvl1_fromlvl2.tif')
+
+# Level 3 to level 2
 lvl3_to_lvl2 = function2.load_img_as_array(name_out_classif[2])
-lvl3_to_lvl2 = lvl3_to_lvl2.astype(int)
-a=function2.regroup_classes(1, lvl3_to_lvl2)
+lvl3_to_lvl2=function2.regroup_classes(1, lvl3_to_lvl2)
+ds = function2.open_image(name_out_classif[2])
+function2.write_image(out_lvl3_to_lvl2, lvl3_to_lvl2, data_set=ds)
+
+# Level 3 to level 1
+lvl3_to_lvl1 = function2.load_img_as_array(name_out_classif[2])
+lvl3_to_lvl1=function2.regroup_classes(2, lvl3_to_lvl1)
+ds = function2.open_image(name_out_classif[2])
+function2.write_image(out_lvl3_to_lvl1, lvl3_to_lvl1, data_set=ds)
+
+# Level 2 to level 1
+lvl2_to_lvl1 = function2.load_img_as_array(name_out_classif[1])
+lvl2_to_lvl1=function2.regroup_classes(3, lvl2_to_lvl1)
+ds = function2.open_image(name_out_classif[1])
+function2.write_image(out_lvl2_to_lvl1, lvl2_to_lvl1, data_set=ds)
+
+
 # Perform validation
 mean_df_report_kf, std_df_report_kf = function2.classif_Kfolds(
     groups_matrix[1], X_list[2], Y_list[2], 
@@ -146,40 +167,3 @@ mean_df_report_kf2, std_df_report_kf2 = function2.classif_Kfolds(
 mean_df_report_kf3, std_df_report_kf3 = function2.classif_Kfolds(
     groups_matrix[0], X_list[1], Y_list[1], 
     ' Regroupement Niveau 2 vers Niveau 1', 3)
-
-
-
-# # 5 --- Regroup classes
-# ### IL FAUT INTEGRER CETTE RECLASSIF DANS KFOLDS CF COURS LANG
-# # Create out name for each regroup
-# out_lvl3_to_lvl2 = os.path.join(my_folder, 'carte_essences_lvl2_fromlvl3.tif')
-# out_lvl3_to_lvl1 = os.path.join(my_folder, 'carte_essences_lvl1_fromlvl3.tif')
-# out_lvl2_to_lvl1 = os.path.join(my_folder, 'carte_essences_lvl1_fromlvl2.tif')
-
-# # Regroup from Level 3 to Level 2
-# lvl3_to_lvl2 = function2.load_img_as_array(name_out_classif[2])
-# lvl3_to_lvl2[(lvl3_to_lvl2 >= 100) & (lvl3_to_lvl2 <= 109)] = 10
-# lvl3_to_lvl2[lvl3_to_lvl2 == 110] = 11
-# lvl3_to_lvl2[(lvl3_to_lvl2 >= 210) & (lvl3_to_lvl2 <= 219)] = 21
-# lvl3_to_lvl2[(lvl3_to_lvl2 >= 220) & (lvl3_to_lvl2 <= 229)] = 22
-# lvl3_to_lvl2[lvl3_to_lvl2 == 230] = 23
-# # Export
-# ds = function2.open_image(name_out_classif[2])
-# function2.write_image(out_lvl3_to_lvl2, lvl3_to_lvl2, data_set=ds)
-
-# # Regroup from Level 3 to Level 1
-# lvl3_to_lvl1 = function2.load_img_as_array(name_out_classif[2])
-# lvl3_to_lvl1[(lvl3_to_lvl1 >= 100) & (lvl3_to_lvl1 <= 110)] = 1
-# lvl3_to_lvl1[(lvl3_to_lvl1 >= 211) & (lvl3_to_lvl1 <= 230)] = 2
-# # Export
-# ds = function2.open_image(name_out_classif[1])
-# function2.write_image(out_lvl3_to_lvl1, lvl3_to_lvl1, data_set=ds)
-
-# # Regroup from Level 2 to Level 1
-lvl2_to_lvl1 = function2.load_img_as_array(name_out_classif[1])
-# lvl2_to_lvl1 = lvl2_to_lvl1.astype(int)
-# lvl2_to_lvl1[(lvl2_to_lvl1 >= 10) & (lvl2_to_lvl1 <= 11)] = 1
-# lvl2_to_lvl1[(lvl2_to_lvl1 >= 21) & (lvl2_to_lvl1 <= 23)] = 2
-# # Export
-# ds = function2.open_image(name_out_classif[1])
-# function2.write_image(out_lvl2_to_lvl1, lvl2_to_lvl1, data_set=ds)
