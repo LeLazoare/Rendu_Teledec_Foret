@@ -683,12 +683,13 @@ def classif_Kfolds(groups, X, Y, name, regroup=None):
           Y_predict = clf.predict(X_test)
           if regroup is not None:
               Y_predict = regroup_classes(regroup, Y_predict)
+              Y_test = regroup_classes(regroup, Y_test)
           # compute quality
           list_cm.append(confusion_matrix(Y_test, Y_predict))
           list_accuracy.append(accuracy_score(Y_test, Y_predict))
           report = classification_report(Y_test, Y_predict,
                                          labels=np.unique(Y_predict),
-                                         output_dict=True)
+                                         output_dict=True, zero_division=0)
     
           # store them
           list_report.append(report_from_dict_to_df(report))

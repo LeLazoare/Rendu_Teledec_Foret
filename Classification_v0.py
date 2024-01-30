@@ -7,14 +7,11 @@ Created on Tue Jan 16 14:06:01 2024
 # Import libraries
 import sys
 import geopandas as gpd
-import pandas as pd
 import os
 import time
 import numpy as np
 from osgeo import gdal
 from osgeo import ogr
-from joblib import parallel_backend
-from sklearn.model_selection import train_test_split
 # personal librairies
 sys.path.append('C:\tmp\projet_TLD_SIGMA\GitHub_projet\Rendu_Teledec_Foret')
 import my_function as function
@@ -23,7 +20,8 @@ import function_test as function2
 # 1 --- inputs
 my_folder = 'C:/tmp/projet_TLD_SIGMA/Results'
 sample_filename = os.path.join(my_folder, 'Sample_BD_foret_T31TCJ.shp')
-image_filename = os.path.join(my_folder, 'D:/3A/TLD/rm_bdforet_res/rm_bdforet_res/multispectral/maj_ms/maj_ms.tif') #Image à 60 bandes
+image_filename = os.path.join(my_folder, 
+                              'D:/3A/TLD/rm_bdforet_res/rm_bdforet_res/multispectral/maj_ms/maj_ms.tif') #Image à 60 bandes
 
 # 2 --- Rasterize each level from polygons
 xmin, ymin, xmax, ymax, sptial_resolution = function.get_raster_extent(image_filename)
@@ -48,87 +46,107 @@ for field_name in fields:
                              field_name=field_name,
                              sptial_resolution=sptial_resolution)
     
-    # Execution du de la commande dans le terminal
+    # Execute command in a terminal
     os.system(cmd)
     
-# 3 --- Create a raster with groups of each polygon
-gdf = gpd.read_file(sample_filename)  #Load the data in a gdf
-gdf['poly_id'] = range(1, len(gdf) + 1) #Attribute a unique code for each polygon
+# 3 --- Create a raster with groups of each polygon for each level
+gdf_lvl1 = gpd.read_file(sample_filename)  #Load the data in a gdf
 
-# Export in shp the gdf
-in_vector = os.path.join(my_folder,'code_group.shp')
-gdf.to_file(in_vector)
+# Discard lines wit No Data for each level
+gdf_lvl2 = gdf_lvl1.dropna(subset=['Code_lvl2'])
+gdf_lvl3 = gdf_lvl1.dropna(subset=['Code_lvl3'])
 
-# Rasterize the vector file
-out_name = os.path.join(my_folder,'code_group.tif')
+#Attribute a unique code for each polygon
+gdf_lvl1['poly_id'] = range(1, len(gdf_lvl1) + 1)
+gdf_lvl2['poly_id'] = range(1, len(gdf_lvl2) + 1) 
+gdf_lvl3['poly_id'] = range(1, len(gdf_lvl3) + 1) 
 
-# There is more than 250 polygons, Int16 is used instead of Byte
-encoding = 'Int16'
-cmd = cmd_pattern.format(in_vector=in_vector, xmin=xmin, ymin=ymin, 
-                             xmax=xmax, ymax=ymax, encoding = encoding,
-                             out_image=out_name, 
-                             field_name="poly_id",
-                             sptial_resolution=sptial_resolution)
-os.system(cmd)
+# Store the gdfs in a list
+gdfs = [gdf_lvl1, gdf_lvl2, gdf_lvl3]
 
-# Remove shp file from directory
-driver = ogr.GetDriverByName("ESRI Shapefile")
-if os.path.exists(in_vector):
-    driver.DeleteDataSource(in_vector)
+# Export in shp gdfs
+lvl = 0
+groups_raster = []
+# Iterate in each gdf
+for level in gdfs:
+    lvl += 1
+    # Write gdf as shp files
+    in_vector = os.path.join(my_folder,'group_{}.shp'.format(lvl))
+    level.to_file(in_vector)
+    out_name = os.path.join(my_folder,'group_{}.tif'.format(lvl))
+    # There is more than 250 polygons, Int16 is used instead of Byte
+    encoding = 'Int16'
+    # Rasterize the vector file
+    cmd = cmd_pattern.format(in_vector=in_vector, xmin=xmin, ymin=ymin, 
+                                 xmax=xmax, ymax=ymax, encoding = encoding,
+                                 out_image=out_name, 
+                                 field_name="poly_id",
+                                 sptial_resolution=sptial_resolution)
+    os.system(cmd)
+    
+    # Collect rasters name
+    groups_raster.append(out_name)
+    
+    # Remove shp file from directory
+    driver = ogr.GetDriverByName("ESRI Shapefile")
+    if os.path.exists(in_vector):
+        driver.DeleteDataSource(in_vector)
 
 
 # 4 --- Perform classification and validation
 
 # Get pixels values of the image that will be classified
-print("Début de la récupération de X_img et t_img:", time.asctime())
 X_img, _, t_img = function2.get_samples_from_roi(image_filename, image_filename)
+
 # Get groups from samples
-print("Fin de la récupération, début de récupération de groups:", time.asctime())
-_, groups, _ = function2.get_samples_from_roi(image_filename, out_name)
-print("Fin de la récupération, début classification", time.time())
+groups_matrix = []
+for raster in groups_raster:
+    _, groups, _ = function2.get_samples_from_roi(image_filename, raster)
+    groups_matrix.append(groups)
+
 # Get X, Y, and t for each level and create name 
 name_out_classif, X_list, Y_list, t_list = [], [], [], []
 for i in range(0, len(samples_raster)):
+    # Create name and directory for the classification
     out_classif = os.path.join(my_folder, 'carte_essences{}'.format(
         samples_raster[i][-9:]))
     name_out_classif.append(out_classif)
-    print(time.asctime())
+    # Get X, Y and t and store them in lists
     X, Y, t = function2.get_samples_from_roi(image_filename, samples_raster[i])
     X_list.append(X), Y_list.append(Y), t_list.append(t)
-    print("X,Y, et t récupérés", time.asctime())
     
-# Perform classification
+# Perform classification on each level
 for j in range(0, len(X_list)):
     function2.classif_final(image_filename, X_list[j], Y_list[j], 
-                            name_out_classif[j], X_img,t_img)
-# Perform validation
+                            name_out_classif[j], X_img, t_img)
+    
+# Perform validation on each level
+std_report_list, mean_report_list = [], []
 for k in range(0, len(X_list)):
-    name = 'Niveau {}'.format(k+1)
+    name = ' Niveau {}'.format(k+1)
     mean_df_report, std_df_report = function2.classif_Kfolds(
-        groups, X_list[k], Y_list[k], name)
+        groups_matrix[k], X_list[k], Y_list[k], name)
+    std_report_list.append(std_df_report)
+    mean_report_list.append(mean_df_report)
     
-# Iterate through each level of classification and produce map
-# mean_report, std_report = [], []
-# for samp in range(0, len(samples_raster)):
-#     out_classif = os.path.join(my_folder, 'carte_essences{}'.format(
-#         samples_raster[samp][-9:]))
-#     name_out_classif.append(out_classif)
-#     print("Nom out_classif: {}".format(out_classif))
-    
-#     # Perform classification and get X, Y and t for validation
-#     X_train, Y_train, X_test, Y_test = function2.classif_final(
-#         image_filename,samples_raster[samp], out_classif, X_img, t_img)
-#     print("X, Y et t récupérés, carte créée")
-#     name = 'Niveau {}'.format(samp+1)
-    
-    
-#     # Perform validation
-#     mean_df_report, std_df_report = function2.classif_Kfolds(
-#         groups, X_train, Y_train, name)
-#     # Store report for each level
-#     mean_report.append(mean_df_report)
-#     std_report.append(std_df_report)
-#     print("Classification et validation effectuée pour {}".format(name))
+# 5 --- Regroup, create correspondant map and perform validation
+# Create maps
+lvl3_to_lvl2 = function2.load_img_as_array(name_out_classif[2])
+lvl3_to_lvl2 = lvl3_to_lvl2.astype(int)
+a=function2.regroup_classes(1, lvl3_to_lvl2)
+# Perform validation
+mean_df_report_kf, std_df_report_kf = function2.classif_Kfolds(
+    groups_matrix[1], X_list[2], Y_list[2], 
+    ' Regroupement Niveau 3 vers Niveau 2', 1)
+
+mean_df_report_kf2, std_df_report_kf2 = function2.classif_Kfolds(
+    groups_matrix[1], X_list[2], Y_list[2], 
+    ' Regroupement Niveau 3 vers Niveau 1', 2)
+
+mean_df_report_kf3, std_df_report_kf3 = function2.classif_Kfolds(
+    groups_matrix[0], X_list[1], Y_list[1], 
+    ' Regroupement Niveau 2 vers Niveau 1', 3)
+
 
 
 # # 5 --- Regroup classes
@@ -158,7 +176,7 @@ for k in range(0, len(X_list)):
 # function2.write_image(out_lvl3_to_lvl1, lvl3_to_lvl1, data_set=ds)
 
 # # Regroup from Level 2 to Level 1
-# lvl2_to_lvl1 = function2.load_img_as_array(name_out_classif[1])
+lvl2_to_lvl1 = function2.load_img_as_array(name_out_classif[1])
 # lvl2_to_lvl1 = lvl2_to_lvl1.astype(int)
 # lvl2_to_lvl1[(lvl2_to_lvl1 >= 10) & (lvl2_to_lvl1 <= 11)] = 1
 # lvl2_to_lvl1[(lvl2_to_lvl1 >= 21) & (lvl2_to_lvl1 <= 23)] = 2
