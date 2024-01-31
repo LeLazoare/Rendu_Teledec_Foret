@@ -9,7 +9,6 @@ import geopandas as gpd
 import os
 from osgeo import ogr
 from osgeo import gdal
-import time
 # personal librairies
 import my_function as function
 
@@ -109,10 +108,8 @@ for i in range(0, len(samples_raster)):
         samples_raster[i][-9:]))
     name_out_classif.append(out_classif)
     # Get X, Y and t and store them in lists
-    print(time.asctime())
     X, Y, t = function.get_samples_from_roi(image_filename, samples_raster[i])
     X_list.append(X), Y_list.append(Y), t_list.append(t)
-    print(time.asctime())
     
 # Perform classification on each level
 for j in range(0, len(X_list)):
@@ -167,4 +164,3 @@ mean_df_report_kf2, std_df_report_kf2 = function.classif_Kfolds(
 mean_df_report_kf3, std_df_report_kf3 = function.classif_Kfolds(
     groups_matrix[0], X_list[1], Y_list[1], 
     ' Regroupement Niveau 2 vers Niveau 1', 3)
-
