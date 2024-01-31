@@ -2,17 +2,22 @@
 Subject: BD FORET enhancement project using REMOTE SENSING
 preprocess -> base functions
 
-Requirements: librairies as follows (osgdal, numpy) 
+Requirements: librairies as follows (osgdal, numpy, geopandas, 
+pandas, RandomForestClassifier from sklearn.ensemble, 
+StratifiedGroupKFold from sklearn.model_selection, confusion matrix
+& classification_report & accuracy_score from sklearn.metrics, 
+matplotlib.pyplot, PlotConfusionMatrix from museotoolbox.charts, 
+colorMap from matplotlib.pyplot) 
 
 Authors: M.Tarby - G.Ruiz - L.Sauger - T.Mervant || SIGMA 2024
 
-Sources: Functions written by Marc Lang for Master 2 - SIGMA 2023/2024
+Some functions used here have been written by M.Lang for SIGMA 2023/2024
 """
 
 #lib import
 from osgeo import gdal #main img handling lib
 import numpy as np #overall calculations
-import subprocess
+
 import geopandas as gpd
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier as RF 
@@ -22,6 +27,7 @@ from sklearn.metrics import confusion_matrix, classification_report, \
 import matplotlib.pyplot as plt
 from museotoolbox.charts import PlotConfusionMatrix
 from matplotlib.pyplot import cm as colorMap
+
 
 def warp_tif(
     input_fpath,
@@ -201,6 +207,7 @@ def get_raster_extent(input_fpath):
     input_fpath | string
     filepath to file related to tif img to process 
     '''
+
     ##open as gdal dataset obj
     input_dataset = gdal.Open(input_fpath)
 
@@ -208,7 +215,6 @@ def get_raster_extent(input_fpath):
     geotransform = input_dataset.GetGeoTransform()
 
     ##get raster extent
-    sptial_resolution = geotransform[1]
     xmin = geotransform[0]
     ymax = geotransform[3]
     xmax = xmin + geotransform[1] * input_dataset.RasterXSize
@@ -217,7 +223,7 @@ def get_raster_extent(input_fpath):
     #close dataset to save memory space
     input_dataset = None
     
-    return(xmin, ymin, xmax, ymax, sptial_resolution)
+    return(xmin, ymin, xmax, ymax)
 
 def apply_mask(input_fpath, mask_fpath, output_fpath):
     '''
@@ -280,7 +286,7 @@ def apply_mask(input_fpath, mask_fpath, output_fpath):
     mask = None
     output_dataset = None
 
-def build_ms(input_fpaths, output_fpath):
+def build_ms(input_fpaths, ms, output_fpath):
     '''
     Using GDAL : build multispectral img from bands in distinct raster files
 
@@ -293,6 +299,10 @@ def build_ms(input_fpaths, output_fpath):
     input_fpaths | string
     filepaths to files related to tif imgs to process 
 
+    ms | bool
+    whether input_fpaths corresponds to multispectral images or not;
+    avoid overwritting bands when it comes to multispectral images
+
     output_fpath | string
     filepath to file where processed img is to be written
     '''
@@ -302,29 +312,47 @@ def build_ms(input_fpaths, output_fpath):
 
     #template img
     template_dataset = input_datasets[0]
-    width = template_dataset.RasterXSize
-    height = template_dataset.RasterYSize
-    projection = template_dataset.GetProjection()
 
     #create empty dataset using template_dataset main properties
     driver = gdal.GetDriverByName(
         template_dataset.GetDriver().ShortName
         )
 
+    #compute total number of bands across all input datasets
+    total_bands = sum(ds.RasterCount for ds in input_datasets)
+
     output_dataset = driver.Create(
         output_fpath, 
         template_dataset.RasterXSize, 
         template_dataset.RasterYSize, 
-        len(input_datasets), 
+        total_bands, 
         template_dataset.GetRasterBand(1).DataType
         )
 
     #write down bands
-    for i, input_dataset in enumerate(input_datasets):
-        for band_num in range(1, input_dataset.RasterCount + 1):
-            output_band = output_dataset.GetRasterBand(i + 1)
-            input_band = input_dataset.GetRasterBand(band_num)
-            output_band.WriteArray(input_band.ReadAsArray())
+    if ms == True:#-- if ms images
+
+        output_band_index = 1  #initialize counter
+
+        for input_dataset in input_datasets: 
+
+            for band_num in range(1, input_dataset.RasterCount + 1):
+
+                if output_band_index <= output_dataset.RasterCount:
+                    output_band = output_dataset.GetRasterBand(output_band_index)#ensure index does not exceed total bands
+                    input_band = input_dataset.GetRasterBand(band_num)
+                    output_band.WriteArray(input_band.ReadAsArray())
+                    output_band_index += 1  #increase counter by increment (1)
+                else:
+                    print("Warning: Output band index exceeds the number of bands in the output dataset.")
+
+    elif ms == False:#-- if panchromatic images
+
+        for i, input_dataset in enumerate(input_datasets):
+            for band_num in range(1, input_dataset.RasterCount + 1):
+                output_band = output_dataset.GetRasterBand(i + 1)
+                input_band = input_dataset.GetRasterBand(band_num)
+                output_band.WriteArray(input_band.ReadAsArray())
 
     #set geotransform and projection
     output_dataset.SetGeoTransform(template_dataset.GetGeoTransform())
@@ -336,26 +364,66 @@ def build_ms(input_fpaths, output_fpath):
 
     output_dataset = None
 
+def compute_ndvi(input_fpath, nb_red_band, nb_infrared_band, output_fpath):
+    '''
+    Using GDAL : compute ndvi for a multispectral image having red and infrared bands
 
-def rasterization(in_vector, ref_image, out_image, field_name, dtype=None):
-    """
-    See otbcli_rasterisation for details on parameters
-    """
-    if dtype is not None :
-        field_name = field_name + ' ' + dtype
-    # define commande
-    cmd_pattern = (
-        "otbcli_Rasterization -in {in_vector} -im {ref_image} -out {out_image}"
-        " -mode attribute -mode.attribute.field {field_name}")
-    cmd = cmd_pattern.format(in_vector=in_vector, ref_image=ref_image,
-                             out_image=out_image, field_name=field_name)
-    print(cmd)
+    REQUIREMENTS
+    __________
+    from osgeo import gdal
+    
+    PARAMETERS
+    __________
+    input_fpath | string
+    filepath to files related to tif img to process 
 
-    # pour python >= 3.7
-    result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-    print(result.decode())
+    nb_red_band | integer
+    known number of input img red band
 
-# ALL THE BELLOW CODE WAS WRITTEN BY MARC LANG
+    nb_infrared_band | integer
+    known number of input img infrared band
+
+    output_fpath | string
+    filepath to file where processed img is to be written
+    '''
+
+    #open as gdal dataset obj
+    input_dataset = gdal.Open(input_fpath)
+
+    #retrieve red and infrared bands
+    red_band = input_dataset.GetRasterBand(nb_red_band).ReadAsArray().astype(float)
+    infrared_band = input_dataset.GetRasterBand(nb_infrared_band).ReadAsArray().astype(float)
+
+    #compute ndvi
+    ndvi = (infrared_band - red_band) / (infrared_band + red_band)
+
+    #create empty dataset using input_dataset main properties
+    driver = gdal.GetDriverByName(input_dataset.GetDriver().ShortName)
+    output_dataset = driver.Create(
+        output_fpath,
+        input_dataset.RasterXSize,
+        input_dataset.RasterYSize,
+        1,#NDVI requires a single band
+        gdal.GDT_Float32#appropriate format for ndvi 
+    )
+
+    output_dataset.SetGeoTransform(input_dataset.GetGeoTransform())
+    output_dataset.SetProjection(input_dataset.GetProjection())
+
+    #retrieve and write ndvi band
+    output_band = output_dataset.GetRasterBand(1)
+    output_band.WriteArray(ndvi)
+
+    #close datasets to save memory space
+    input_dataset = None
+    output_dataset = None
+
+
+
+
+#######################################################################################
+#######################################################################################
+#######################################################################################
 def open_image(filename, verbose=False):
   """
   Open an image file with gdal
@@ -978,18 +1046,28 @@ def report_from_dict_to_df(dict_report):
 
     return report_df
 
-def classif_Kfolds(image_filename, sample_filename, id_filename):
+def classif_Kfolds(groups, X, Y, name, regroup=None):
+    """
+    Perform a validation for each classification using Kfolds
+
+    Parameters
+    ----------
+    groups : array
+    X : array
+    Y : array
+    name : str
+    regroup : int, optional
+        DESCRIPTION. The default is None. Specify the wanted regroup
+
+    Returns
+    -------
+    mean_df_report : 
+    std_df_report : 
+
+    """
     # Sample parameters
-    #test_size = 0.7
-    nb_iter = 30
+    nb_iter = 10
     nb_folds = 5
-    
-    
-    # 2 --- extract samples
-    X, Y, t = get_samples_from_roi(image_filename, sample_filename)
-    _, groups, _ = get_samples_from_roi(image_filename, id_filename)
-    
-    
     list_cm = []
     list_accuracy = []
     list_report = []
@@ -1003,19 +1081,21 @@ def classif_Kfolds(image_filename, sample_filename, id_filename):
     
           # 3 --- Train
           #clf = SVC(cache_size=6000)
-          clf = RF(max_depth=20, oob_score=True,max_samples=0.75, 
-                   class_weight='balanced')
-          clf.fit(X_train, Y_train)
+          clf = RF(max_depth=10, oob_score=True,max_samples=0.10, 
+                   class_weight='balanced', n_jobs=-1)
+          clf.fit(X_train, np.ravel(Y_train))
     
           # 4 --- Test
           Y_predict = clf.predict(X_test)
-    
+          if regroup is not None:
+              Y_predict = regroup_classes(regroup, Y_predict)
+              Y_test = regroup_classes(regroup, Y_test)
           # compute quality
           list_cm.append(confusion_matrix(Y_test, Y_predict))
           list_accuracy.append(accuracy_score(Y_test, Y_predict))
           report = classification_report(Y_test, Y_predict,
                                          labels=np.unique(Y_predict),
-                                         output_dict=True)
+                                         output_dict=True, zero_division=0)
     
           # store them
           list_report.append(report_from_dict_to_df(report))
@@ -1049,7 +1129,7 @@ def classif_Kfolds(image_filename, sample_filename, id_filename):
     _ = ax.text(1.5, 0.95, 'OA : {:.2f} +- {:.2f}'.format(mean_accuracy,
                                                           std_accuracy),
                 fontsize=14)
-    ax.set_title('Class quality estimation')
+    ax.set_title('Class quality estimation{}'.format(name))
     
     # custom : cuteness
     # background color
@@ -1072,20 +1152,31 @@ def classif_Kfolds(image_filename, sample_filename, id_filename):
                   linewidth=0.5, zorder=1)
     ax.yaxis.grid(which='minor', color='darkgoldenrod', linestyle='-.',
                   linewidth=0.3, zorder=1)
+    return mean_df_report, std_df_report
 
-def classif_final(image_filename, sample_filename, out_classif):
-    # 1 --- extract samples
-    X, Y, t = get_samples_from_roi(image_filename, sample_filename)
-    
-    # 2 --- Apply the model
-    clf = RF(max_depth=20, oob_score=True,max_samples=0.75, 
-                   class_weight='balanced')
-    clf.fit(X, Y)
+def classif_final(image_filename, X, Y, out_classif, X_img, 
+                  t_img):
+    """
+    Produce an image for each level of classification
 
-    
-    # 3 --- apply on the whole image
-    # load image
-    X_img, _, t_img = get_samples_from_roi(image_filename, image_filename)
+    Parameters
+    ----------
+    image_filename : str
+    X : array
+    Y : array
+    out_classif : str
+    X_img : array
+    t_img : array
+
+    Returns
+    -------
+    None.
+
+    """
+    # Apply the model
+    clf = RF(max_depth=10, oob_score=True,max_samples=0.10, 
+                   class_weight='balanced', n_jobs=-1)
+    clf.fit(X, np.ravel(Y))
     
     # predict image
     Y_predict = clf.predict(X_img)
@@ -1099,6 +1190,62 @@ def classif_final(image_filename, sample_filename, out_classif):
     
     # write image
     ds = open_image(image_filename)
-    write_image(out_classif, img, data_set=ds, gdal_dtype=None,
+    write_image(out_classif, img, data_set=ds, gdal_dtype=gdal.GDT_Byte,
                 transform=None, projection=None, driver_name=None,
                 nb_col=None, nb_ligne=None, nb_band=1)
+
+def regroup_classes(level, Y):
+    """
+    Regroup classes from a level to another 
+    
+    Parameters
+    ----------
+    level : int
+    Y : array
+
+    Returns
+    -------
+    Y : array
+
+    """
+    if level == 1:
+        # Regroup from Level 3 to Level 2
+        Y[(Y >= 100) & (Y <= 109)] = 10
+        Y[Y == 110] = 11
+        Y[(Y >= 210) & (Y <= 219)] = 21
+        Y[(Y >= 220) & (Y <= 229)] = 22
+        Y[Y == 230] = 23
+    
+    if level == 2:
+        # Regroup from Level 3 to Level 1
+        Y[(Y >= 100) & (Y <= 110)] = 1
+        Y[(Y >= 211) & (Y <= 230)] = 2
+    
+    if level == 3:
+        # Regroup from Level 2 to Level 1
+        Y[(Y >= 10) & (Y <= 11)] = 1
+        Y[(Y >= 21) & (Y <= 23)] = 2
+    
+    return Y
+# # Regroup from Level 3 to Level 2
+# Y = function2.load_img_as_array(name_out_classif[2])
+# # Export
+# ds = function2.open_image(name_out_classif[2])
+# function2.write_image(out_lvl3_to_lvl2, lvl3_to_lvl2, data_set=ds)
+
+# # Regroup from Level 3 to Level 1
+# lvl3_to_lvl1 = function2.load_img_as_array(name_out_classif[2])
+
+# # Export
+# ds = function2.open_image(name_out_classif[1])
+# function2.write_image(out_lvl3_to_lvl1, lvl3_to_lvl1, data_set=ds)
+
+# # Regroup from Level 2 to Level 1
+# lvl2_to_lvl1 = function2.load_img_as_array(name_out_classif[1])
+# lvl2_to_lvl1 = lvl2_to_lvl1.astype(int)
+# lvl2_to_lvl1[(lvl2_to_lvl1 >= 10) & (lvl2_to_lvl1 <= 11)] = 1
+# lvl2_to_lvl1[(lvl2_to_lvl1 >= 21) & (lvl2_to_lvl1 <= 23)] = 2
+# # Export
+# ds = function2.open_image(name_out_classif[1])
+# function2.write_image(out_lvl2_to_lvl1, lvl2_to_lvl1, data_set=ds)
+    
